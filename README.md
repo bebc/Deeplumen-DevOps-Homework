@@ -8,8 +8,6 @@
 
 构建一个 **生产级别的 CI/CD 自动化平台**，实现从基础设施即代码（IaC）到应用全生命周期管理的完整链路。
 
-主域名：`deeplumen.com`
-
 ---
 
 ## Architecture Overview
