@@ -195,7 +195,7 @@ Jenkins ↔ Kubernetes 集成：
 所有敏感信息必须使用 `ansible-vault` 加密：
 
 ```yaml
-# group_vars/all.yml.vault (加密文件示例)
+# group_vars/vault.yml (加密文件示例)
 vault_k8s_api_token: "eyJhbGciOiJSUzI1NiIs..."
 vault_jenkins_admin_password: "SecureP@ssw0rd"
 vault_registry_password: "docker-hub-token"
@@ -206,7 +206,7 @@ vault_kubeadm_token: "abcdef.0123456789abcdef"
 
 ```bash
 # 加密
-ansible-vault encrypt group_vars/all.yml.vault
+ansible-vault encrypt group_vars/vault.yml
 
 # 执行时解密
 ansible-playbook site.yml --vault-password-file vault-password-file
@@ -323,7 +323,7 @@ kubectl delete all -l app=${APP_NAME} -n ${NAMESPACE}
 vim ansible/inventories/hosts.yml
 
 # Step 2: 配置并加密敏感变量
-ansible-vault encrypt ansible/inventories/group_vars/all.yml.vault
+ansible-vault encrypt ansible/inventories/group_vars/vault.yml
 
 # Step 3: 一键部署全部基础设施
 ansible-playbook ansible/playbooks/site.yml \
