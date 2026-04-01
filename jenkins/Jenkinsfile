@@ -48,6 +48,34 @@ pipeline {
             }
         }
 
+        stage('Ensure kubectl') {
+            steps {
+                script {
+                    env.KUBECTL_BIN = sh(
+                        script: '''
+                            set -e
+                            if command -v kubectl >/dev/null 2>&1; then
+                              command -v kubectl
+                              exit 0
+                            fi
+
+                            if ! command -v curl >/dev/null 2>&1; then
+                              echo "curl is required to download kubectl" >&2
+                              exit 1
+                            fi
+
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            echo "$PWD/kubectl"
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Using kubectl binary: ${env.KUBECTL_BIN}"
+                }
+            }
+        }
+
         stage('K8s Lifecycle Operation') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
@@ -58,7 +86,8 @@ pipeline {
                             namespace: params.NAMESPACE,
                             imageTag: params.IMAGE_TAG,
                             replicas: params.REPLICAS,
-                            kubeconfigFile: env.KUBECONFIG_FILE
+                            kubeconfigFile: env.KUBECONFIG_FILE,
+                            kubectlBin: env.KUBECTL_BIN
                         )
                     }
                 }

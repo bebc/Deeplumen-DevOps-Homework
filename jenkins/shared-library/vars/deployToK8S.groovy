@@ -7,20 +7,21 @@ def call(Map config = [:]) {
     String imageTag = config.imageTag
     String replicas = config.replicas ?: '2'
     String kubeconfigFile = config.kubeconfigFile
+    String kubectlBin = config.kubectlBin ?: 'kubectl'
 
     switch (action) {
         case 'deploy':
-            renderAndApply(appName, namespace, imageTag, replicas, kubeconfigFile)
-            checkRolloutWithRollback(appName, namespace, kubeconfigFile)
+            renderAndApply(appName, namespace, imageTag, replicas, kubeconfigFile, kubectlBin)
+            checkRolloutWithRollback(appName, namespace, kubeconfigFile, kubectlBin)
             break
         case 'update':
-            sh "kubectl --kubeconfig ${kubeconfigFile} set image deployment/${appName} ${appName}=${appName}:${imageTag} -n ${namespace}"
-            checkRolloutWithRollback(appName, namespace, kubeconfigFile)
+            runKubectl(kubectlBin, kubeconfigFile, "set image deployment/${appName} ${appName}=${appName}:${imageTag} -n ${namespace}")
+            checkRolloutWithRollback(appName, namespace, kubeconfigFile, kubectlBin)
             break
         case 'delete':
-            sh "kubectl --kubeconfig ${kubeconfigFile} delete deployment ${appName} -n ${namespace} --ignore-not-found=true"
-            sh "kubectl --kubeconfig ${kubeconfigFile} delete service ${appName} -n ${namespace} --ignore-not-found=true"
-            sh "kubectl --kubeconfig ${kubeconfigFile} delete ingress ${appName} -n ${namespace} --ignore-not-found=true"
+            runKubectl(kubectlBin, kubeconfigFile, "delete deployment ${appName} -n ${namespace} --ignore-not-found=true")
+            runKubectl(kubectlBin, kubeconfigFile, "delete service ${appName} -n ${namespace} --ignore-not-found=true")
+            runKubectl(kubectlBin, kubeconfigFile, "delete ingress ${appName} -n ${namespace} --ignore-not-found=true")
             break
         default:
             error("Unsupported ACTION: ${action}")
@@ -39,7 +40,7 @@ def validateConfig(Map config) {
     }
 }
 
-def renderAndApply(String appName, String namespace, String imageTag, String replicas, String kubeconfigFile) {
+def renderAndApply(String appName, String namespace, String imageTag, String replicas, String kubeconfigFile, String kubectlBin) {
     String generatedDir = '.generated-k8s'
     sh "mkdir -p ${generatedDir}"
 
@@ -47,9 +48,9 @@ def renderAndApply(String appName, String namespace, String imageTag, String rep
     renderTemplate('k8s/deployments/app-service.yml.j2', "${generatedDir}/app-service.yml", appName, namespace, imageTag, replicas)
     renderTemplate('k8s/deployments/app-ingress.yml.j2', "${generatedDir}/app-ingress.yml", appName, namespace, imageTag, replicas)
 
-    sh "kubectl --kubeconfig ${kubeconfigFile} apply -f ${generatedDir}/app-deployment.yml"
-    sh "kubectl --kubeconfig ${kubeconfigFile} apply -f ${generatedDir}/app-service.yml"
-    sh "kubectl --kubeconfig ${kubeconfigFile} apply -f ${generatedDir}/app-ingress.yml"
+    runKubectl(kubectlBin, kubeconfigFile, "apply -f ${generatedDir}/app-deployment.yml")
+    runKubectl(kubectlBin, kubeconfigFile, "apply -f ${generatedDir}/app-service.yml")
+    runKubectl(kubectlBin, kubeconfigFile, "apply -f ${generatedDir}/app-ingress.yml")
 }
 
 def renderTemplate(String source, String target, String appName, String namespace, String imageTag, String replicas) {
@@ -62,12 +63,23 @@ def renderTemplate(String source, String target, String appName, String namespac
     writeFile(file: target, text: content)
 }
 
-def checkRolloutWithRollback(String appName, String namespace, String kubeconfigFile) {
+def checkRolloutWithRollback(String appName, String namespace, String kubeconfigFile, String kubectlBin) {
     try {
-        sh "kubectl --kubeconfig ${kubeconfigFile} rollout status deployment/${appName} -n ${namespace} --timeout=180s"
+        runKubectl(kubectlBin, kubeconfigFile, "rollout status deployment/${appName} -n ${namespace} --timeout=180s")
     } catch (Exception ex) {
         echo "Rollout check failed, trying rollback for deployment/${appName} in ${namespace}."
-        sh "kubectl --kubeconfig ${kubeconfigFile} rollout undo deployment/${appName} -n ${namespace} || true"
+        try {
+            runKubectl(kubectlBin, kubeconfigFile, "rollout undo deployment/${appName} -n ${namespace}")
+        } catch (Exception ignore) {
+            echo 'Rollback command failed, please check cluster state manually.'
+        }
         throw ex
+    }
+}
+
+def runKubectl(String kubectlBin, String kubeconfigFile, String args) {
+    withEnv(["KUBE_BIN=${kubectlBin}", "KUBE_CONFIG_PATH=${kubeconfigFile}"]) {
+        sh(script: '''
+            "$KUBE_BIN" --kubeconfig "$KUBE_CONFIG_PATH" ''' + args)
     }
 }
