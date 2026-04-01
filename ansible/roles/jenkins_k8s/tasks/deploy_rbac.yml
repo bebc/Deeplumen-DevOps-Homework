@@ -1,0 +1,9 @@
+- name: "渲染并应用 Role 和 RoleBinding - {{ target_ns }}"
+  ansible.builtin.shell: |
+    cat <<EOF | kubectl apply -f -
+    {{ lookup('template', 'jenkins-rbac.yml.j2') }}
+    EOF
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: role_out
+  changed_when: "'configured' in role_out.stdout or 'created' in role_out.stdout"

@@ -4,3 +4,8 @@
     - /root/project/ansible/inventories/group_vars/vault.yml
   roles:
     - jenkins
+
+- name: 创建 Jenkins k8s sa
+  hosts: masters
+  roles:
+    - jenkins_k8s

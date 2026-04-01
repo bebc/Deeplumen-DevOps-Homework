@@ -3,11 +3,85 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        choice(name: 'ACTION', choices: ['deploy', 'update', 'delete'], description: 'K8s lifecycle action')
+        string(name: 'APP_NAME', defaultValue: 'demo-app', description: 'Application name')
+        choice(name: 'NAMESPACE', choices: ['staging', 'production'], description: 'Target namespace')
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Image tag')
+        string(name: 'REPLICAS', defaultValue: '2', description: 'Replica count for deploy')
+    }
+
     stages {
-        stage('Deploy') {
+        stage('Validate Parameters') {
             steps {
-                deployToK8S('staging')  // 调用共享库中的 deploy 步骤
+                script {
+                    if (!(params.APP_NAME ==~ /^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$/)) {
+                        error('APP_NAME must be a valid DNS-1123 label')
+                    }
+                    if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9_.-]+$/)) {
+                        error('IMAGE_TAG contains invalid characters')
+                    }
+                    if (!(params.REPLICAS ==~ /^[0-9]+$/)) {
+                        error('REPLICAS must be a non-negative integer')
+                    }
+                }
             }
+        }
+
+        stage('Checkout / Build (Placeholder)') {
+            steps {
+                checkout scm
+                echo 'Build placeholder: this pipeline run focuses on K8s lifecycle operations.'
+            }
+        }
+
+        stage('Push Image (Placeholder)') {
+            when {
+                expression { params.ACTION != 'delete' }
+            }
+            steps {
+                echo "Push placeholder: target image will be ${params.APP_NAME}:${params.IMAGE_TAG}."
+            }
+        }
+
+        stage('K8s Lifecycle Operation') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    script {
+                        deployToK8S(
+                            action: params.ACTION,
+                            appName: params.APP_NAME,
+                            namespace: params.NAMESPACE,
+                            imageTag: params.IMAGE_TAG,
+                            replicas: params.REPLICAS,
+                            kubeconfigFile: env.KUBECONFIG_FILE
+                        )
+                    }
+                }
+            }
+        }
+
+        stage('Result') {
+            steps {
+                echo "Action=${params.ACTION}, App=${params.APP_NAME}, Namespace=${params.NAMESPACE} completed."
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline finished successfully.'
+        }
+        failure {
+            echo "Pipeline failed. If ACTION was deploy/update, verify rollout and use: kubectl rollout undo deployment/${params.APP_NAME} -n ${params.NAMESPACE}"
+        }
+        always {
+            echo 'Notification placeholder: integrate Slack/Email/DingTalk here.'
         }
     }
 }

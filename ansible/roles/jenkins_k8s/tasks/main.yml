@@ -1,0 +1,36 @@
+---
+- name: 确保目标命名空间存在 (Staging & Production)
+  ansible.builtin.shell: |
+    kubectl create namespace {{ item }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: ns_create
+  # 这里的逻辑：如果报错信息包含 "already exists"，则不认为任务失败
+  failed_when:
+    - ns_create.rc != 0
+    - "'already exists' not in ns_create.stderr"
+  # 只有真正创建成功时，Ansible 才显示为黄色 (changed)
+  changed_when: "ns_create.rc == 0"
+  loop:
+    - staging
+    - production
+
+- name: 创建 Jenkins 专用 ServiceAccount
+  ansible.builtin.shell: |
+    kubectl apply -f - <<EOF
+    {{ lookup('template', 'jenkins-sa.yml.j2') }}
+    EOF
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sa_create
+  failed_when: false
+  changed_when: "sa_create.rc == 0"
+
+- name: 部署跨命名空间 RBAC 配置 (Staging & Production)
+  include_tasks: deploy_rbac.yml
+  loop:
+    - staging
+    - production
+  loop_control:
+    loop_var: target_ns
+
