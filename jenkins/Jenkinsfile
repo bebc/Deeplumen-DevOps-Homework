@@ -1,0 +1,13 @@
+@Library('k8s_deploy') _
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Deploy') {
+            steps {
+                deployToK8S('staging')  // 调用共享库中的 deploy 步骤
+            }
+        }
+    }
+}
