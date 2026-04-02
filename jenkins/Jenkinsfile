@@ -97,7 +97,7 @@ spec:
                 container('kaniko') {
                     script {
                         try {
-                            sh '''
+                             sh '''
                                 /kaniko/executor \
                                   --context "${WORKSPACE}/app" \
                                   --dockerfile "${WORKSPACE}/docker/dockerfile-${params.LANGUAGE}" \
@@ -106,9 +106,12 @@ spec:
                                   --single-snapshot \
                                   --cleanup
                             '''
-                        } catch (Exception ex) {
-                            error("Image build failed for ${params.APP_NAME} with error: ${ex.getMessage()}")
+                        } catch (Exception e) {
+                            echo "构建失败，开始锁定 Pod 供调试 (30分钟)..."
+                            sh "sleep 1800"  // 报错后 Pod 不会消失，等待 30 分钟
+                            throw e
                         }
+                    }
                 }
             }
         }
