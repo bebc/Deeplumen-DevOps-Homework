@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: {{ APP_NAME }}
-        image: {{ APP_NAME }}:{{ IMAGE_TAG }}
+        image: {{ IMAGE_URI }}
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

@@ -22,7 +22,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     imagePullPolicy: IfNotPresent
-    command: ["/bin/sh", "-c", "tail -f /dev/null"] 
+        command: ["/bin/sh", "-c", "tail -f /dev/null"]
   volumes:
   - name: kaniko-secret
     projected:
@@ -42,10 +42,12 @@ spec:
 
     parameters {
         choice(name: 'ACTION', choices: ['deploy', 'update', 'delete'], description: 'K8s lifecycle action')
+        choice(name: 'LANGUAGE', choices: ['golang', 'java', 'nodejs'], description: 'Application language type')
         string(name: 'APP_NAME', defaultValue: 'demo-app', description: 'Application name')
         choice(name: 'NAMESPACE', choices: ['staging', 'production'], description: 'Target namespace')
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Image tag')
         string(name: 'REPLICAS', defaultValue: '2', description: 'Replica count for deploy')
+        string(name: 'DEPLOY_JOB', defaultValue: 'deploy-pipeline', description: 'Downstream deployment job name (uses jenkins/Jenkinsfile.deploy)')
     }
 
     stages {
@@ -55,93 +57,84 @@ spec:
                     if (!(params.APP_NAME ==~ /^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$/)) {
                         error('APP_NAME must be a valid DNS-1123 label')
                     }
-                    if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9_.-]+$/)) {
-                        error('IMAGE_TAG contains invalid characters')
-                    }
                     if (!(params.REPLICAS ==~ /^[0-9]+$/)) {
                         error('REPLICAS must be a non-negative integer')
                     }
+                    if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9_.-]+$/)) {
+                        error('IMAGE_TAG contains invalid characters')
+                    }
+                    if (!['golang', 'java', 'nodejs'].contains(params.LANGUAGE)) {
+                        error('LANGUAGE must be one of golang|java|nodejs')
+                    }
+                    env.IMAGE_URI = "registry.cn-hangzhou.aliyuncs.com/bebc/${params.APP_NAME}:${params.IMAGE_TAG}"
                 }
             }
         }
 
-        stage('Checkout / Build (Placeholder)') {
-            steps {
-                checkout scm
-                echo 'Build placeholder: this pipeline run focuses on K8s lifecycle operations.'
-            }
-        }
-
-        stage('Push Image (Placeholder)') {
+        stage('Checkout Repositories') {
             when {
                 expression { params.ACTION != 'delete' }
             }
             steps {
-                echo "Push placeholder: target image will be ${params.APP_NAME}:${params.IMAGE_TAG}."
+                checkout scm
+                dir('app') {
+                    deleteDir()
+                    git url: "https://github.com/bebc/${params.APP_NAME}.git"
+                }
+                echo "Checked out app repository: github.com/bebc/${params.APP_NAME}"
             }
         }
 
-        // stage('Ensure kubectl') {
-        //     steps {
-        //         script {
-        //             env.KUBECTL_BIN = sh(
-        //                 script: '''
-        //                     set -e
-        //                     if command -v kubectl >/dev/null 2>&1; then
-        //                       command -v kubectl
-        //                       exit 0
-        //                     fi
-
-        //                     if ! command -v curl >/dev/null 2>&1; then
-        //                       echo "curl is required to download kubectl" >&2
-        //                       exit 1
-        //                     fi
-
-        //                     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        //                     chmod +x kubectl
-        //                     echo "$PWD/kubectl"
-        //                 ''',
-        //                 returnStdout: true
-        //             ).trim()
-
-        //             echo "Using kubectl binary: ${env.KUBECTL_BIN}"
-        //         }
-        //     }
-        // }
-
-        stage('K8s Lifecycle Operation') {
+        stage('Build & Push Image') {
+            when {
+                expression { params.ACTION != 'delete' }
+            }
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
-                    script {
-                        container('kubectl') {
-                            deployToK8S(
-                                action: params.ACTION,
-                                appName: params.APP_NAME,
-                                namespace: params.NAMESPACE,
-                                imageTag: params.IMAGE_TAG,
-                                replicas: params.REPLICAS,
-                                kubeconfigFile: env.KUBECONFIG_FILE,
-                                kubectlBin: env.KUBECTL_BIN
-                            )
-                        }
-                    }
+                container('kaniko') {
+                    sh '''
+                        /kaniko/executor \
+                          --context "${WORKSPACE}/app" \
+                          --dockerfile "${WORKSPACE}/docker/dockerfile-golang" \
+                          --destination "${IMAGE_URI}" \
+                          --build-arg APP_NAME_ARG="${APP_NAME}" \
+                          --single-snapshot \
+                          --cleanup
+                    '''
+                }
+            }
+        }
+
+        stage('Trigger Deploy Pipeline') {
+            steps {
+                script {
+                    build job: params.DEPLOY_JOB,
+                        wait: true,
+                        propagate: true,
+                        parameters: [
+                            string(name: 'ACTION', value: params.ACTION),
+                            string(name: 'APP_NAME', value: params.APP_NAME),
+                            string(name: 'NAMESPACE', value: params.NAMESPACE),
+                            string(name: 'IMAGE_TAG', value: params.IMAGE_TAG),
+                            string(name: 'IMAGE_URI', value: env.IMAGE_URI),
+                            string(name: 'REPLICAS', value: params.REPLICAS)
+                        ]
                 }
             }
         }
 
         stage('Result') {
             steps {
-                echo "Action=${params.ACTION}, App=${params.APP_NAME}, Namespace=${params.NAMESPACE} completed."
+                echo "Action=${params.ACTION}, Language=${params.LANGUAGE}, App=${params.APP_NAME}, Namespace=${params.NAMESPACE}, ImageTag=${params.IMAGE_TAG} completed."
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline finished successfully.'
+            echo 'Build pipeline finished successfully and deployment pipeline completed.'
         }
         failure {
-            echo "Pipeline failed. If ACTION was deploy/update, verify rollout and use: kubectl rollout undo deployment/${params.APP_NAME} -n ${params.NAMESPACE}"
+            echo 'Build or downstream deploy pipeline failed. Check stage logs for details.'
         }
         always {
             echo 'Notification placeholder: integrate Slack/Email/DingTalk here.'
