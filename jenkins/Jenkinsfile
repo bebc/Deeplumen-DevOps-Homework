@@ -15,14 +15,12 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
-    command: ["/bin/sh", "-c", "tail -f /dev/null"] 
+    command: ["/bin/sh", "-c", "tail -f /dev/null"]
+    securityContext:
+      runAsUser: 0  # 强制使用 root 执行构建
     volumeMounts:
     - name: kaniko-secret
       mountPath: /kaniko/.docker
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    imagePullPolicy: IfNotPresent
-    command: ["/bin/sh", "-c", "tail -f /dev/null"]
   volumes:
   - name: kaniko-secret
     projected:
@@ -108,7 +106,7 @@ spec:
                             '''
                         } catch (Exception e) {
                             echo "构建失败，开始锁定 Pod 供调试 (30分钟)..."
-                            sh "sleep 1800"  // 报错后 Pod 不会消失，等待 30 分钟
+                            sh "sleep 1800000"  // 报错后 Pod 不会消失，等待 30 分钟
                             throw e
                         }
                     }
