@@ -7,18 +7,22 @@ agent {
 apiVersion: v1
 kind: Pod
 spec:
-  # 使用你之前通过 Ansible 创建的受限 SA
+  securityContext:
+    runAsUser: 1000  # 或者与镜像匹配的用户 ID
+    fsGroup: 1000
   serviceAccountName: jenkins-deployer
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
-    command: ["sleep"]
-    args: ["99d"]
+    imagePullPolicy: IfNotPresent
+    command: ["cat"]
+    ttyEnabled: true
     volumeMounts:
     - name: kaniko-secret
       mountPath: /kaniko/.docker
   - name: kubectl
     image: bitnami/kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ["sleep"]
     args: ["99d"]
   volumes:
