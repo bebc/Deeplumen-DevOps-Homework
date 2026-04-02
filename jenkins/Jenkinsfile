@@ -15,16 +15,16 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
-    command: ["cat"]
-    ttyEnabled: true
+    tty: true
+    stdin: true
     volumeMounts:
     - name: kaniko-secret
       mountPath: /kaniko/.docker
   - name: kubectl
     image: bitnami/kubectl:latest
     imagePullPolicy: IfNotPresent
-    command: ["sleep"]
-    args: ["99d"]
+    tty: true
+    stdin: true
   volumes:
   - name: kaniko-secret
     projected:
