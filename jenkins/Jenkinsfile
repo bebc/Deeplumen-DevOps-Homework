@@ -1,13 +1,14 @@
 @Library('k8s_deploy') _
 
 pipeline {
-    agent {
+agent {
         kubernetes {
             yaml """
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins-sa
+  # 使用你之前通过 Ansible 创建的受限 SA
+  serviceAccountName: jenkins-deployer
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
@@ -30,6 +31,8 @@ spec:
             - key: .dockerconfigjson
               path: config.json
 """
+        }
+    }
 
     options {
         disableConcurrentBuilds()
