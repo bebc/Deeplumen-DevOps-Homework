@@ -13,6 +13,8 @@ spec:
     image: bitnami/kubectl:latest
     imagePullPolicy: IfNotPresent
     command: ["/bin/sh", "-c", "tail -f /dev/null"]
+    securityContext:
+      runAsUser: 0 # 调试期间建议先统一成 root 排除权限干扰
 """
         }
     }
