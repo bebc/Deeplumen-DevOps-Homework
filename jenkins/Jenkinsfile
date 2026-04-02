@@ -38,6 +38,11 @@ spec:
         disableConcurrentBuilds()
     }
 
+    environment {
+        GIT_REPO_BASE = 'https://github.com/bebc'
+        IMAGE_REGISTRY_BASE = 'registry.cn-hangzhou.aliyuncs.com/bebc'
+    }
+
     parameters {
         choice(name: 'ACTION', choices: ['deploy', 'update', 'delete'], description: 'K8s lifecycle action')
         choice(name: 'LANGUAGE', choices: ['golang', 'java', 'nodejs'], description: 'Application language type')
@@ -68,7 +73,7 @@ spec:
                     if (!['golang', 'java', 'nodejs'].contains(params.LANGUAGE)) {
                         error('LANGUAGE must be one of golang|java|nodejs')
                     }
-                    env.IMAGE_URI = "registry.cn-hangzhou.aliyuncs.com/bebc/${params.APP_NAME}:${params.IMAGE_TAG}"
+                    env.IMAGE_URI = "${env.IMAGE_REGISTRY_BASE}/${params.APP_NAME}:${params.IMAGE_TAG}"
                 }
             }
         }
@@ -81,7 +86,7 @@ spec:
                 checkout scm
                 dir('app') {
                     deleteDir()
-                    git branch: params.APP_BRANCH, url: "https://github.com/bebc/${params.APP_NAME}.git"
+                    git branch: params.APP_BRANCH, url: "${env.GIT_REPO_BASE}/${params.APP_NAME}.git"
                 }
                 echo "Checked out app repository: github.com/bebc/${params.APP_NAME}, branch=${params.APP_BRANCH}"
             }
