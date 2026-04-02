@@ -95,15 +95,20 @@ spec:
             }
             steps {
                 container('kaniko') {
-                    sh '''
-                        /kaniko/executor \
-                          --context "${WORKSPACE}/app" \
-                          --dockerfile "${WORKSPACE}/docker/dockerfile-golang" \
-                          --destination "${IMAGE_URI}" \
-                          --build-arg APP_NAME_ARG="${APP_NAME}" \
-                          --single-snapshot \
-                          --cleanup
-                    '''
+                    script {
+                        try {
+                            sh '''
+                                /kaniko/executor \
+                                  --context "${WORKSPACE}/app" \
+                                  --dockerfile "${WORKSPACE}/docker/dockerfile-${params.LANGUAGE}" \
+                                  --destination "${IMAGE_URI}" \
+                                  --build-arg APP_NAME_ARG="${params.APP_NAME}" \
+                                  --single-snapshot \
+                                  --cleanup
+                            '''
+                        } catch (Exception ex) {
+                            error("Image build failed for ${params.APP_NAME} with error: ${ex.getMessage()}")
+                        }
                 }
             }
         }
