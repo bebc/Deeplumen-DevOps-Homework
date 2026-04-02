@@ -95,7 +95,7 @@ spec:
                 container('kaniko') {
                     script {
                         try {
-                             sh '''
+                             sh """
                                 /kaniko/executor \
                                   --context "${WORKSPACE}/app" \
                                   --dockerfile "${WORKSPACE}/docker/dockerfile-${params.LANGUAGE}" \
@@ -103,7 +103,7 @@ spec:
                                   --build-arg APP_NAME_ARG="${params.APP_NAME}" \
                                   --single-snapshot \
                                   --cleanup
-                            '''
+                            """
                         } catch (Exception e) {
                             echo "构建失败，开始锁定 Pod 供调试 (30分钟)..."
                             sh "sleep 1800000"  // 报错后 Pod 不会消失，等待 30 分钟
