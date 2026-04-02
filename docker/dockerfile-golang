@@ -2,7 +2,7 @@
 ARG APP_NAME_ARG
 
 # 第一阶段：编译
-FROM golang:1.22-alpine AS builder
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/golang:1.25-alpine3.21 AS builder
 ARG APP_NAME_ARG
 WORKDIR /app
 COPY . .
