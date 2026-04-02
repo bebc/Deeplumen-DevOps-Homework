@@ -44,6 +44,7 @@ spec:
         choice(name: 'ACTION', choices: ['deploy', 'update', 'delete'], description: 'K8s lifecycle action')
         choice(name: 'LANGUAGE', choices: ['golang', 'java', 'nodejs'], description: 'Application language type')
         string(name: 'APP_NAME', defaultValue: 'demo-app', description: 'Application name')
+        string(name: 'APP_BRANCH', defaultValue: 'main', description: 'App repository branch')
         choice(name: 'NAMESPACE', choices: ['staging', 'production'], description: 'Target namespace')
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Image tag')
         string(name: 'REPLICAS', defaultValue: '2', description: 'Replica count for deploy')
@@ -63,6 +64,9 @@ spec:
                     if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9_.-]+$/)) {
                         error('IMAGE_TAG contains invalid characters')
                     }
+                    if (!(params.APP_BRANCH ==~ /^[A-Za-z0-9._\/-]+$/)) {
+                        error('APP_BRANCH contains invalid characters')
+                    }
                     if (!['golang', 'java', 'nodejs'].contains(params.LANGUAGE)) {
                         error('LANGUAGE must be one of golang|java|nodejs')
                     }
@@ -79,9 +83,9 @@ spec:
                 checkout scm
                 dir('app') {
                     deleteDir()
-                    git url: "https://github.com/bebc/${params.APP_NAME}.git"
+                    git branch: params.APP_BRANCH, url: "https://github.com/bebc/${params.APP_NAME}.git"
                 }
-                echo "Checked out app repository: github.com/bebc/${params.APP_NAME}"
+                echo "Checked out app repository: github.com/bebc/${params.APP_NAME}, branch=${params.APP_BRANCH}"
             }
         }
 
