@@ -22,7 +22,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     imagePullPolicy: IfNotPresent
-        command: ["/bin/sh", "-c", "tail -f /dev/null"]
+    command: ["/bin/sh", "-c", "tail -f /dev/null"]
   volumes:
   - name: kaniko-secret
     projected:
