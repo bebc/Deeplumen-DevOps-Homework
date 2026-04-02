@@ -1,7 +1,35 @@
 @Library('k8s_deploy') _
 
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-sa
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["sleep"]
+    args: ["99d"]
+    volumeMounts:
+    - name: kaniko-secret
+      mountPath: /kaniko/.docker
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["sleep"]
+    args: ["99d"]
+  volumes:
+  - name: kaniko-secret
+    projected:
+      sources:
+      - secret:
+          name: regcred  # 你的镜像仓库登录凭证 Secret
+          items:
+            - key: .dockerconfigjson
+              path: config.json
+"""
 
     options {
         disableConcurrentBuilds()
@@ -48,47 +76,49 @@ pipeline {
             }
         }
 
-        stage('Ensure kubectl') {
-            steps {
-                script {
-                    env.KUBECTL_BIN = sh(
-                        script: '''
-                            set -e
-                            if command -v kubectl >/dev/null 2>&1; then
-                              command -v kubectl
-                              exit 0
-                            fi
+        // stage('Ensure kubectl') {
+        //     steps {
+        //         script {
+        //             env.KUBECTL_BIN = sh(
+        //                 script: '''
+        //                     set -e
+        //                     if command -v kubectl >/dev/null 2>&1; then
+        //                       command -v kubectl
+        //                       exit 0
+        //                     fi
 
-                            if ! command -v curl >/dev/null 2>&1; then
-                              echo "curl is required to download kubectl" >&2
-                              exit 1
-                            fi
+        //                     if ! command -v curl >/dev/null 2>&1; then
+        //                       echo "curl is required to download kubectl" >&2
+        //                       exit 1
+        //                     fi
 
-                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                            chmod +x kubectl
-                            echo "$PWD/kubectl"
-                        ''',
-                        returnStdout: true
-                    ).trim()
+        //                     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        //                     chmod +x kubectl
+        //                     echo "$PWD/kubectl"
+        //                 ''',
+        //                 returnStdout: true
+        //             ).trim()
 
-                    echo "Using kubectl binary: ${env.KUBECTL_BIN}"
-                }
-            }
-        }
+        //             echo "Using kubectl binary: ${env.KUBECTL_BIN}"
+        //         }
+        //     }
+        // }
 
         stage('K8s Lifecycle Operation') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     script {
-                        deployToK8S(
-                            action: params.ACTION,
-                            appName: params.APP_NAME,
-                            namespace: params.NAMESPACE,
-                            imageTag: params.IMAGE_TAG,
-                            replicas: params.REPLICAS,
-                            kubeconfigFile: env.KUBECONFIG_FILE,
-                            kubectlBin: env.KUBECTL_BIN
-                        )
+                        container('kubectl') {
+                            deployToK8S(
+                                action: params.ACTION,
+                                appName: params.APP_NAME,
+                                namespace: params.NAMESPACE,
+                                imageTag: params.IMAGE_TAG,
+                                replicas: params.REPLICAS,
+                                kubeconfigFile: env.KUBECONFIG_FILE,
+                                kubectlBin: env.KUBECTL_BIN
+                            )
+                        }
                     }
                 }
             }

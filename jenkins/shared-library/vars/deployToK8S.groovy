@@ -54,13 +54,27 @@ def renderAndApply(String appName, String namespace, String imageTag, String rep
 }
 
 def renderTemplate(String source, String target, String appName, String namespace, String imageTag, String replicas) {
+    String strategyBlock = buildStrategyBlock(namespace)
     String content = readFile(file: source)
     content = content
         .replace('{{ APP_NAME }}', appName)
         .replace('{{ NAMESPACE }}', namespace)
         .replace('{{ IMAGE_TAG }}', imageTag)
         .replace('{{ REPLICAS }}', replicas)
+        .replace('{{ STRATEGY_BLOCK }}', strategyBlock)
     writeFile(file: target, text: content)
+}
+
+def buildStrategyBlock(String namespace) {
+    if (namespace == 'production') {
+        return '''  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+'''
+    }
+    return ''
 }
 
 def checkRolloutWithRollback(String appName, String namespace, String kubeconfigFile, String kubectlBin) {
